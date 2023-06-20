@@ -90,8 +90,10 @@ class DeoVRGui:
         self.player_status = tk.Label(self.window, text="Player Status: Not Connected")
         self.player_status.pack()
 
-        self.path_entry = tk.Entry(self.window)
-        self.path_entry.pack()
+        self.current_time_label = tk.Label(self.window, text="Current Time: 0.0")  # new
+        self.current_time_label.pack()  # new
+        self.duration_label = tk.Label(self.window, text="Duration: 0.0")  # new
+        self.duration_label.pack()  # new
 
         self.seek_label = tk.Label(self.window, text="Seek to (in seconds):")  # new
         self.seek_label.pack()  # new
@@ -128,6 +130,12 @@ class DeoVRGui:
     def update(self, data):
         # Update GUI with received data
         self.player_status["text"] = f"Player Status: {data['playerState']}"
+
+        if "currentTime" in data:
+            self.current_time_label.config(text=f"Current Time: {data['currentTime']}")  # new
+
+        if "duration" in data:
+            self.duration_label.config(text=f"Duration: {data['duration']}")  # new
 
     def run(self):
         self.window.mainloop()
