@@ -55,7 +55,7 @@ class DeoVRGui:
         self.client = DeoVRClient(self)
 
         self.window = tk.Tk()
-        self.window.title("DeoVR Remote Control test client v0.01")
+        self.window.title("DeoVR Remote Control")
 
         self.connect_button = tk.Button(self.window, text="Connect", command=self.connect_button_clicked)
         self.connect_button.pack()
@@ -90,6 +90,17 @@ class DeoVRGui:
         self.player_status = tk.Label(self.window, text="Player Status: Not Connected")
         self.player_status.pack()
 
+        self.path_entry = tk.Entry(self.window)
+        self.path_entry.pack()
+
+        self.seek_label = tk.Label(self.window, text="Seek to (in seconds):")  # new
+        self.seek_label.pack()  # new
+        self.seek_entry = tk.Entry(self.window)  # new
+        self.seek_entry.pack()  # new
+
+        self.seek_button = tk.Button(self.window, text="Seek", command=self.seek_button_clicked)  # new
+        self.seek_button.pack()  # new
+
     def connect_button_clicked(self):
         try:
             self.client.connect()
@@ -121,6 +132,9 @@ class DeoVRGui:
     def run(self):
         self.window.mainloop()
 
+    def seek_button_clicked(self):  # new method
+        seek_time = float(self.seek_entry.get())  # we convert the input to float, as it's time in seconds
+        self.client.send({"currentTime": seek_time})
 
 if __name__ == "__main__":
     gui = DeoVRGui()
