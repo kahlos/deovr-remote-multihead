@@ -56,20 +56,25 @@ class DeoVRGui:
 
         self.window = tk.Tk()
         self.window.title("DeoVR Remote Control test client v0.01")
-        
-        # Define all the GUI controls similar to the original C# application
+
         self.connect_button = tk.Button(self.window, text="Connect", command=self.connect_button_clicked)
         self.connect_button.pack()
-        
+
         self.disconnect_button = tk.Button(self.window, text="Disconnect", command=self.disconnect_button_clicked)
         self.disconnect_button.pack()
 
+        self.host_label = tk.Label(self.window, text="Hostname:")
+        self.host_label.pack()
         self.hostname_entry = tk.Entry(self.window)
         self.hostname_entry.pack()
 
+        self.port_label = tk.Label(self.window, text="Port:")
+        self.port_label.pack()
         self.port_entry = tk.Entry(self.window)
         self.port_entry.pack()
 
+        self.path_label = tk.Label(self.window, text="Video path:")
+        self.path_label.pack()
         self.path_entry = tk.Entry(self.window)
         self.path_entry.pack()
 
@@ -81,6 +86,9 @@ class DeoVRGui:
 
         self.pause_button = tk.Button(self.window, text="Pause", command=self.pause_button_clicked)
         self.pause_button.pack()
+
+        self.player_status = tk.Label(self.window, text="Player Status: Not Connected")
+        self.player_status.pack()
 
     def connect_button_clicked(self):
         try:
@@ -107,8 +115,8 @@ class DeoVRGui:
         self.client.send({"playerState": 1})
 
     def update(self, data):
-        # Here you should update the GUI with received data
-        pass
+        # Update GUI with received data
+        self.player_status["text"] = f"Player Status: {data['playerState']}"
 
     def run(self):
         self.window.mainloop()
