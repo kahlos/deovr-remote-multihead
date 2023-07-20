@@ -93,7 +93,7 @@ class DeoVRClient:
                 length = int.from_bytes(self.sock.recv(4), 'big')
                 if length:
                     msg = json.loads(self.sock.recv(length).decode('utf-8'))
-                    self.gui.update(msg)
+                    self.gui.update(self.id, msg)
             except Exception as e:
                 print(f"Exception in receive: {e}")
                 break  # Break the loop and end the thread if an exception occurs
@@ -146,6 +146,19 @@ class DeoVRGui:
         self.port_entry = tk.Entry(self.window)
         self.port_entry.insert(0, '23554')  # pre-fill with the default port
         self.port_entry.pack()
+
+        # Add entries for the second client's hostname and port
+        self.host2_label = tk.Label(self.window, text="Hostname (2):")
+        self.host2_label.pack()
+        self.hostname2_entry = tk.Entry(self.window)
+        self.hostname2_entry.insert(0, '10.0.0.161')  # pre-fill with the default hostname
+        self.hostname2_entry.pack()
+
+        self.port2_label = tk.Label(self.window, text="Port (2):")
+        self.port2_label.pack()
+        self.port2_entry = tk.Entry(self.window)
+        self.port2_entry.insert(0, '23554')  # pre-fill with the default port
+        self.port2_entry.pack()
 
         # Create and pack labels and entry field for entering the video path
         self.path_label = tk.Label(self.window, text="Video path:")
@@ -204,10 +217,14 @@ class DeoVRGui:
 
     def connect_button_clicked(self):
         try:
-            hostname = self.hostname_entry.get()
-            port = int(self.port_entry.get())
-            for client in self.clients:
-                client.connect(hostname, port)
+            hostname1 = self.hostname_entry.get()
+            port1 = int(self.port_entry.get())
+            self.clients[0].connect(hostname1, port1)
+
+            hostname2 = self.hostname2_entry.get()
+            port2 = int(self.port2_entry.get())
+            self.clients[1].connect(hostname2, port2)
+
             messagebox.showinfo("Connection status", "Successfully connected")
             # Enable the buttons when the connection is successful.
             self.set_buttons_state('normal')
@@ -256,20 +273,20 @@ class DeoVRGui:
         for client in self.clients:
             client.send({"playbackSpeed": playback_speed})
 
-    def update(self, data):
-        print(f'Received data: {data}')  # This will log the data received.
+    def update(self, id, data):
+        print(f'Received data from client {id}: {data}')  # This will log the data received.
         # Update GUI with received data
         player_state = "Playing" if data['playerState'] == 0 else "Paused"
-        self.player_status["text"] = f"Player Status: {player_state}"
+        self.player_status["text"] = f"Client {id} Player Status: {player_state}"
 
         if "currentTime" in data:
-            self.current_time_label.config(text=f"Current Time: {data['currentTime']}")  # new
+            self.current_time_label.config(text=f"Client {id} Current Time: {data['currentTime']}")  # new
 
         if "duration" in data:
-            self.duration_label.config(text=f"Duration: {data['duration']}")  # new
+            self.duration_label.config(text=f"Client {id} Duration: {data['duration']}")  # new
 
         if "playbackSpeed" in data:
-            self.playback_speed_label.config(text=f"Playback Speed: {data['playbackSpeed']}") # new
+            self.playback_speed_label.config(text=f"Client {id} Playback Speed: {data['playbackSpeed']}") # new
 
     def stop_all_clients(self):
         for client in self.clients:
