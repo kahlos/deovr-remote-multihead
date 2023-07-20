@@ -10,7 +10,7 @@ import threading  # used for running multiple tasks at the same time
 import atexit
 
 class DeoVRClient:
-    def __init__(self, gui, host='10.0.0.161', port=23554):
+    def __init__(self, gui, host='127.0.0.1', port=23554):
         # The constructor takes a gui object, a host address and a port number.
         # The gui object will be used to interact with the GUI.
         # The host and port will be used to connect to the DeoVR app.
@@ -23,17 +23,17 @@ class DeoVRClient:
         self.receiver = None
         self.pinger = None
 
-    def connect(self):
+    def connect(self, hostname, port):
         # This method is called to connect to the DeoVR app.
         # A socket is created and connected to the specified host and port.
         # Two threads are started: one for receiving data from the app and one for pinging the app.
         try:
             self.sock = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
-            print(f"Attempting to connect to {self.host}:{self.port}")  # debug log
-            self.sock.connect((self.host, self.port))
+            print(f"Attempting to connect to {hostname}:{port}")  # debug log
+            self.sock.connect((hostname, port))
             print("Connected successfully")  # debug log
             self.connected = True
-            self.send({"path": "", "duration": 0, "currentTime": 0, "playbackSpeed": 0, "playerState": 0})
+            self.send({})
             self.receiver = threading.Thread(target=self._receive)
             self.receiver.start()
             self.pinger = threading.Thread(target=self._start_ping)
@@ -125,11 +125,13 @@ class DeoVRGui:
         self.host_label = tk.Label(self.window, text="Hostname:")
         self.host_label.pack()
         self.hostname_entry = tk.Entry(self.window)
+        self.hostname_entry.insert(0, '10.0.0.161')  # pre-fill with the default hostname
         self.hostname_entry.pack()
 
         self.port_label = tk.Label(self.window, text="Port:")
         self.port_label.pack()
         self.port_entry = tk.Entry(self.window)
+        self.port_entry.insert(0, '23554')  # pre-fill with the default port
         self.port_entry.pack()
 
         # Create and pack labels and entry field for entering the video path
@@ -189,8 +191,9 @@ class DeoVRGui:
 
     def connect_button_clicked(self):
         try:
-            self.client.connect()
-            self.client.send({"playbackSpeed": 1})  # Set playback speed to 1
+            hostname = self.hostname_entry.get()
+            port = int(self.port_entry.get())
+            self.client.connect(hostname, port)
             messagebox.showinfo("Connection status", "Successfully connected")
             # Enable the buttons when the connection is successful.
             self.set_buttons_state('normal')
