@@ -24,6 +24,7 @@ class DeoVRClient:
         self.connected = False
         self.receiver = None
         self.pinger = None
+        self.current_time = 0.0
 
     def connect(self, hostname, port):
         # This method is called to connect to the DeoVR app.
@@ -194,6 +195,7 @@ class DeoVRGui:
 
         if "currentTime" in data:
             self.frames[id]['current_time_label'].config(text=f"Current Time: {data['currentTime']}")  # new
+            self.clients[id].current_time = data['currentTime']  # Store the current_time in the client
 
         if "duration" in data:
             self.frames[id]['duration_label'].config(text=f"Duration: {data['duration']}")  # new
@@ -415,6 +417,14 @@ class DeoVRGui:
             frame_dict['frame'].grid(row=row, column=column, padx=10, pady=10)
             
     def master_play_button_clicked(self):
+        # Get current time from master
+        master_current_time = self.clients[0].current_time  # Assume first client is the master
+
+        # Send seek command to all clients
+        for client in self.clients:
+            client.send({"currentTime": master_current_time})
+
+        # Then send play command
         for client in self.clients:
             client.send({"playerState": 0})
 
