@@ -9,7 +9,7 @@ import socket  # used for creating a network connection
 import threading  # used for running multiple tasks at the same time
 
 class DeoVRClient:
-    def __init__(self, gui, host='127.0.0.1', port=23554):
+    def __init__(self, gui, host='10.0.0.161', port=23554):
         # The constructor takes a gui object, a host address and a port number.
         # The gui object will be used to interact with the GUI.
         # The host and port will be used to connect to the DeoVR app.
@@ -26,14 +26,19 @@ class DeoVRClient:
         # This method is called to connect to the DeoVR app.
         # A socket is created and connected to the specified host and port.
         # Two threads are started: one for receiving data from the app and one for pinging the app.
-
-        self.sock = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
-        self.sock.connect((self.host, self.port))
-        self.connected = True
-        self.receiver = threading.Thread(target=self._receive)
-        self.receiver.start()
-        self.pinger = threading.Thread(target=self._start_ping)
-        self.pinger.start()
+        try:
+            self.sock = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
+            print(f"Attempting to connect to {self.host}:{self.port}")  # debug log
+            self.sock.connect((self.host, self.port))
+            print("Connected successfully")  # debug log
+            self.connected = True
+            self.receiver = threading.Thread(target=self._receive)
+            self.receiver.start()
+            self.pinger = threading.Thread(target=self._start_ping)
+            self.pinger.start()
+        except Exception as e:
+            print(f"Failed to connect due to: {e}")  # debug log
+            self.connected = False
 
     def disconnect(self):
         # This method is called to disconnect from the DeoVR app.
@@ -57,24 +62,32 @@ class DeoVRClient:
         # When data is received, it is decoded and passed to the GUI to update the interface.
 
         while self.connected:
-            length = int.from_bytes(self.sock.recv(4), 'big')
-            if length:
-                msg = json.loads(self.sock.recv(length).decode('utf-8'))
-                self.gui.update(msg)
+            try:
+                length = int.from_bytes(self.sock.recv(4), 'big')
+                if length:
+                    msg = json.loads(self.sock.recv(length).decode('utf-8'))
+                    self.gui.update(msg)
+            except Exception as e:
+                print(f"Exception in receive: {e}")
+                break  # Break the loop and end the thread if an exception occurs
+
 
     def _start_ping(self):
         # This method is run in a separate thread and is responsible for pinging the DeoVR app every second.
         # This keeps the connection to the app alive.
 
         while self.connected:
-            self.send({})
-            time.sleep(1)
+            try:
+                self.send({})
+                time.sleep(1)
+            except Exception as e:
+                print(f"Exception in ping: {e}")
+                break  # Break the loop and end the thread if an exception occurs
 
 
 class DeoVRGui:
     def __init__(self):
         # Constructor: sets up the GUI window and elements, and creates a DeoVRClient for interacting with the DeoVR app.
-        
         self.client = DeoVRClient(self)
 
         # Create main application window
@@ -133,6 +146,45 @@ class DeoVRGui:
         self.seek_entry.pack()
         self.seek_button = tk.Button(self.window, text="Seek", command=self.seek_button_clicked)
         self.seek_button.pack()
+
+        # List of buttons that require a connection to work.
+        self.buttons_that_require_connection = [
+            self.open_path_button,
+            self.play_button,
+            self.pause_button,
+            self.seek_button
+        ]
+
+        # Disable the buttons to start.
+        self.set_buttons_state('disabled')
+
+
+    def connect_button_clicked(self):
+        try:
+            self.client.connect()
+            messagebox.showinfo("Connection status", "Successfully connected")
+            # Enable the buttons when the connection is successful.
+            self.set_buttons_state('normal')
+        except Exception as e:
+            messagebox.showerror("Connection status", f"Failed to connect: {e}")
+
+    def disconnect_button_clicked(self):
+        try:
+            self.client.disconnect()
+            messagebox.showinfo("Connection status", "Successfully disconnected")
+            # Disable the buttons when the connection is closed.
+            self.set_buttons_state('disabled')
+        except Exception as e:
+            messagebox.showerror("Connection status", f"Failed to disconnect: {e}")
+
+    def set_buttons_state(self, state):
+        """
+        Set the state of all buttons that require a connection.
+
+        :param state: The state to set. Should be either 'normal' or 'disabled'.
+        """
+        for button in self.buttons_that_require_connection:
+            button.config(state=state)
 
     def connect_button_clicked(self):
         try:
