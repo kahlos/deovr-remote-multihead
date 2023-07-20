@@ -135,53 +135,36 @@ class DeoVRClient:
 
     def _sync_loop(self):
         sync_checks = 0  # Counter for number of sync checks within tolerance
-        warmup_periods = 10
-        warmup_counter = 0
-        dampening_factor = 0.01  # Adjust this to your needs
 
         try:
             while self.syncing:
-                # print(f"[DEBUG] Sync loop for client {self.id} is running.")
+                # print(f"[DEBUG] Sync loop for client {self.id} is running.")  # New logging statement
                 master = self.gui.clients[0]  # Assume the first client is the master
-
                 if master.connected and self.connected:  # Only sync if both the master and this client are connected
-                    print(f"[DEBUG] Syncing client {self.id}. Master time: {master.current_time}, client time: {self.current_time}")
+                    print(f"[DEBUG] Syncing client {self.id}. Master time: {master.current_time}, client time: {self.current_time}")  # New logging statement
                     time_difference = self.current_time - master.current_time
-                    print(f"[DEBUG] Time difference for client {self.id}: {time_difference}")
 
-                    # Set playback speed based on time difference
-                    if abs(time_difference) < 0.01:  # If the difference is less than 0.01 seconds
-                        sync_checks += 1  # Increment sync check counter
-                        print(f"[DEBUG] Sync checks counter for client {self.id}: {sync_checks}")  # New logging statement
-                        if sync_checks >= 100:  # If we've had 100 checks within tolerance
+                     # If the time difference is less than 0.01 for more than 5 seconds
+                    if abs(time_difference) < 0.01:
+                        sync_checks += 1
+                        if sync_checks >= 50:
                             self.syncing = False  # Stop the sync loop
                             print(f"[DEBUG] Sync loop for client {self.id} is stopping.")
-                        continue  # Skip the rest of the loop
+                            continue
                     else:
                         sync_checks = 0  # Reset sync check counter if we're not within tolerance
-                        print(f"[DEBUG] Reset sync checks counter for client {self.id}.")  # New logging statement
 
-
-                    # Make a larger adjustment if the time difference is large
-                    speed_adjustment_factor = max(min(abs(time_difference) * dampening_factor, 1.5), 0.5)
-
-                    # Decrease the speed if this client is ahead; otherwise increase it
+                    # Set playback speed based on time difference
+                    # Scale the adjustment based on the time difference. Max adjustment is 50%, min adjustment is 1%
+                    adjustment = min(max(abs(time_difference * 10), 1), 50) / 100
+                    print(f"[DEBUG] Time difference and adjustment for client {self.id}: {time_difference} / {adjustment}")  # New logging statement
                     if time_difference > 0:
-                        adjusted_speed = 1.0 - (speed_adjustment_factor * abs(time_difference))
+                        self.send({"playbackSpeed": max(0.70, 1 - adjustment)})  # If this client is ahead, slow it down
+                    elif time_difference < 0:
+                        self.send({"playbackSpeed": min(1.3, 1 + adjustment)})  # If this client is behind, speed it up
                     else:
-                        adjusted_speed = 1.0 + (speed_adjustment_factor * abs(time_difference))
-
-                    self.send({"playbackSpeed": adjusted_speed})
-
-                # Adjust sleep time - more frequent checks when time difference is large
-                # If we are still warming up sleep less frequently
-                if warmup_counter < warmup_periods:
-                    warmup_counter += 1
-                    time.sleep(1)  # Sleep for a full second during warm-up
-                else:
-                    # Adjust sleep time - more frequent checks when time difference is large
-                    sleep_time = max(0.1, min(abs(time_difference), 0.5))
-                    time.sleep(sleep_time)
+                        self.send({"playbackSpeed": 1.0})  # If the difference is 0, set the speed to normal
+                time.sleep(0.1)  # Sleep for a 200 ms before checking again
         except Exception as e:
             print(f"[ERROR] Exception in sync loop for client {self.id}: {e}")
 
