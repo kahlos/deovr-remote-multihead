@@ -45,9 +45,11 @@ class DeoVRClient:
             self.receiver.start()
             self.pinger = threading.Thread(target=self._start_ping)
             self.pinger.start()
+            return True
         except Exception as e:
             print(f"Failed to connect due to: {e}")  # debug log
             self.connected = False
+            return False
 
     def disconnect(self):
         # This method is called to disconnect from the DeoVR app.
@@ -111,7 +113,7 @@ class DeoVRClient:
                         self.gui.update(self.id, msg)
                         if 'currentTime' in msg:
                             self.current_time = msg['currentTime']
-                            print(f"[DEBUG] Current time for client {self.id}: {self.current_time}")  # New logging statement
+                            # print(f"[DEBUG] Current time for client {self.id}: {self.current_time}")  # New logging statement
                     except UnicodeDecodeError:
                         print(f"Failed to decode message from client {self.id}: {msg_bytes}")
             except Exception as e:
@@ -135,10 +137,11 @@ class DeoVRClient:
         sync_checks = 0  # Counter for number of sync checks within tolerance
         warmup_periods = 10
         warmup_counter = 0
+        dampening_factor = 0.01  # Adjust this to your needs
 
         try:
             while self.syncing:
-                print(f"[DEBUG] Sync loop for client {self.id} is running.")
+                # print(f"[DEBUG] Sync loop for client {self.id} is running.")
                 master = self.gui.clients[0]  # Assume the first client is the master
 
                 if master.connected and self.connected:  # Only sync if both the master and this client are connected
@@ -149,15 +152,18 @@ class DeoVRClient:
                     # Set playback speed based on time difference
                     if abs(time_difference) < 0.01:  # If the difference is less than 0.01 seconds
                         sync_checks += 1  # Increment sync check counter
-                        if sync_checks >= 20:  # If we've had 20 checks within tolerance
+                        print(f"[DEBUG] Sync checks counter for client {self.id}: {sync_checks}")  # New logging statement
+                        if sync_checks >= 100:  # If we've had 100 checks within tolerance
                             self.syncing = False  # Stop the sync loop
                             print(f"[DEBUG] Sync loop for client {self.id} is stopping.")
                         continue  # Skip the rest of the loop
                     else:
                         sync_checks = 0  # Reset sync check counter if we're not within tolerance
+                        print(f"[DEBUG] Reset sync checks counter for client {self.id}.")  # New logging statement
+
 
                     # Make a larger adjustment if the time difference is large
-                    speed_adjustment_factor = max(min(abs(time_difference), 1.5), 0.5)
+                    speed_adjustment_factor = max(min(abs(time_difference) * dampening_factor, 1.5), 0.5)
 
                     # Decrease the speed if this client is ahead; otherwise increase it
                     if time_difference > 0:
@@ -227,16 +233,16 @@ class DeoVRGui:
 
 
     def connect_button_clicked(self, id):
-        try:
-            hostname = self.frames[id]['hostname_entry'].get()
-            port = int(self.frames[id]['port_entry'].get())
-            self.clients[id].connect(hostname, port)
+        hostname = self.frames[id]['hostname_entry'].get()
+        port = int(self.frames[id]['port_entry'].get())
+        connection_success = self.clients[id].connect(hostname, port)  # Try to connect and store the return value
 
+        if connection_success:  # If the connection was successful
             messagebox.showinfo("Connection status", f"Successfully connected to client {id+1}")
             # Enable the buttons when the connection is successful.
             self.set_buttons_state('normal', id)
-        except Exception as e:
-            messagebox.showerror("Connection status", f"Failed to connect to client {id+1}: {e}")
+        else:  # If the connection failed
+            messagebox.showerror("Connection status", f"Failed to connect to client {id+1}")
 
     def disconnect_button_clicked(self, id):
         try:
@@ -266,7 +272,7 @@ class DeoVRGui:
         self.clients[id].send({"playbackSpeed": playback_speed})
 
     def update(self, id, data):
-        print(f'Received data from client {id}: {data}')  # This will log the data received.
+        # print(f'Received data from client {id}: {data}')  # This will log the data received.
         # Update GUI with received data
         player_state = "Playing" if data['playerState'] == 0 else "Paused"
         self.frames[id]['player_status']["text"] = f"Player Status: {player_state}"
@@ -497,6 +503,7 @@ class DeoVRGui:
             frame_dict['frame'].grid(row=row, column=column, padx=10, pady=10)
             
     def master_play_button_clicked(self):
+        print(f"Starting playback on all headsets")
         # Start playing on all clients
         for client in self.clients:
             client.send({"playerState": 0})
@@ -507,22 +514,26 @@ class DeoVRGui:
             client.send({"playerState": 2})
 
     def master_pause_button_clicked(self):
+        print(f"Pausing all headsets")
         for client in self.clients:
             client.stop_sync_loop()  # Stop any previous sync loop
             client.send({"playerState": 1})
 
     def master_seek_button_clicked(self):
         seek_time = float(self.master_seek_entry.get())  # we convert the input to float, as it's time in seconds
+        print(f"Seeking all headsets to {seek_time}")
         for client in self.clients:
             client.send({"currentTime": seek_time})
 
     def master_set_playback_speed_button_clicked(self):
         playback_speed = float(self.master_playback_speed_entry.get())  # we convert the input to float, as it's speed
+        print(f"Setting playback speed for all headsets to {playback_speed}")
         for client in self.clients:
             client.send({"playbackSpeed": playback_speed})
 
     def master_open_path_button_clicked(self):
         path = self.master_path_entry.get()
+        print(f"Opening on all headsets {path}")
         for client in self.clients:
             client.send({"path": path})
         
