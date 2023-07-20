@@ -116,186 +116,225 @@ class DeoVRGui:
     def __init__(self):
         # Constructor: sets up the GUI window and elements, and creates a DeoVRClient for interacting with the DeoVR app.
         
-        # Create two clients
-        self.clients = [
-            DeoVRClient(self, id=1),
-            DeoVRClient(self, id=2)
-        ]
-
         # Create main application window
         self.window = tk.Tk()
         self.window.title("DeoVR Remote Control")
 
-        # Create "Connect" button and define what happens when it is clicked
-        self.connect_button = tk.Button(self.window, text="Connect", command=self.connect_button_clicked)
-        self.connect_button.pack()
-
-        # Create "Disconnect" button and define what happens when it is clicked
-        self.disconnect_button = tk.Button(self.window, text="Disconnect", command=self.disconnect_button_clicked)
-        self.disconnect_button.pack()
-
-        # Create and pack labels and entry fields for entering the hostname and port
-        self.host_label = tk.Label(self.window, text="Hostname:")
-        self.host_label.pack()
-        self.hostname_entry = tk.Entry(self.window)
-        self.hostname_entry.insert(0, '10.0.0.60')  # pre-fill with the default hostname
-        self.hostname_entry.pack()
-
-        self.port_label = tk.Label(self.window, text="Port:")
-        self.port_label.pack()
-        self.port_entry = tk.Entry(self.window)
-        self.port_entry.insert(0, '23554')  # pre-fill with the default port
-        self.port_entry.pack()
-
-        # Add entries for the second client's hostname and port
-        self.host2_label = tk.Label(self.window, text="Hostname (2):")
-        self.host2_label.pack()
-        self.hostname2_entry = tk.Entry(self.window)
-        self.hostname2_entry.insert(0, '10.0.0.161')  # pre-fill with the default hostname
-        self.hostname2_entry.pack()
-
-        self.port2_label = tk.Label(self.window, text="Port (2):")
-        self.port2_label.pack()
-        self.port2_entry = tk.Entry(self.window)
-        self.port2_entry.insert(0, '23554')  # pre-fill with the default port
-        self.port2_entry.pack()
-
-        # Create and pack labels and entry field for entering the video path
-        self.path_label = tk.Label(self.window, text="Video path:")
-        self.path_label.pack()
-        self.path_entry = tk.Entry(self.window)
-        self.path_entry.pack()
-
-        # Create "Open Path" button and define what happens when it is clicked
-        self.open_path_button = tk.Button(self.window, text="Open Path", command=self.open_path_button_clicked)
-        self.open_path_button.pack()
-
-        # Create "Play" and "Pause" buttons and define what happens when they are clicked
-        self.play_button = tk.Button(self.window, text="Play", command=self.play_button_clicked)
-        self.play_button.pack()
-        self.pause_button = tk.Button(self.window, text="Pause", command=self.pause_button_clicked)
-        self.pause_button.pack()
-
-        # Create label to display player status
-        self.player_status = tk.Label(self.window, text="Player Status: Not Connected")
-        self.player_status.pack()
-
-        # Create labels to display the current time and duration of the video
-        self.current_time_label = tk.Label(self.window, text="Current Time: 0.0")
-        self.current_time_label.pack()
-        self.duration_label = tk.Label(self.window, text="Duration: 0.0")
-        self.duration_label.pack()
-
-        # Create and pack label, entry field and button for the seek functionality
-        self.seek_label = tk.Label(self.window, text="Seek to (in seconds):")
-        self.seek_label.pack()
-        self.seek_entry = tk.Entry(self.window)
-        self.seek_entry.pack()
-        self.seek_button = tk.Button(self.window, text="Seek", command=self.seek_button_clicked)
-        self.seek_button.pack()
-
-        # Create and pack label, entry field and button for the playback speed functionality
-        self.playback_speed_label = tk.Label(self.window, text="Playback speed:")
-        self.playback_speed_label.pack()
-        self.playback_speed_entry = tk.Entry(self.window)
-        self.playback_speed_entry.pack()
-        self.set_playback_speed_button = tk.Button(self.window, text="Set Playback Speed", command=self.set_playback_speed_button_clicked)
-        self.set_playback_speed_button.pack()
-
-        # List of buttons that require a connection to work.
-        self.buttons_that_require_connection = [
-            self.open_path_button,
-            self.play_button,
-            self.pause_button,
-            self.seek_button,
-            self.set_playback_speed_button
+        # Create two clients
+        self.clients = [
+            DeoVRClient(self, id=0),
+            DeoVRClient(self, id=1)
         ]
 
-        # Disable the buttons to start.
-        self.set_buttons_state('disabled')
+        self.frames = []
+        self.buttons_that_require_connection = []
+
+        # Now that all the frames have been fully set up, disable the buttons
+        self.setup()
 
 
-    def connect_button_clicked(self):
+    def connect_button_clicked(self, id):
         try:
-            hostname1 = self.hostname_entry.get()
-            port1 = int(self.port_entry.get())
-            self.clients[0].connect(hostname1, port1)
+            hostname = self.frames[id]['hostname_entry'].get()
+            port = int(self.frames[id]['port_entry'].get())
+            self.clients[id].connect(hostname, port)
 
-            hostname2 = self.hostname2_entry.get()
-            port2 = int(self.port2_entry.get())
-            self.clients[1].connect(hostname2, port2)
-
-            messagebox.showinfo("Connection status", "Successfully connected")
+            messagebox.showinfo("Connection status", f"Successfully connected to client {id+1}")
             # Enable the buttons when the connection is successful.
-            self.set_buttons_state('normal')
+            self.set_buttons_state('normal', id)
         except Exception as e:
-            messagebox.showerror("Connection status", f"Failed to connect: {e}")
+            messagebox.showerror("Connection status", f"Failed to connect to client {id+1}: {e}")
 
-    def disconnect_button_clicked(self):
+    def disconnect_button_clicked(self, id):
         try:
-            for client in self.clients:
-                client.disconnect()
-            messagebox.showinfo("Connection status", "Successfully disconnected")
+            self.clients[id].disconnect()
+            messagebox.showinfo("Connection status", f"Successfully disconnected from client {id+1}")
             # Disable the buttons when the connection is closed.
-            self.set_buttons_state('disabled')
+            self.set_buttons_state('disabled', id)
         except Exception as e:
-            messagebox.showerror("Connection status", f"Failed to disconnect: {e}")
+            messagebox.showerror("Connection status", f"Failed to disconnect from client {id+1}: {e}")
 
-    def set_buttons_state(self, state):
-        """
-        Set the state of all buttons that require a connection.
+    def open_path_button_clicked(self, id):
+        path = self.frames[id]['path_entry'].get()
+        self.clients[id].send({"path": path})
 
-        :param state: The state to set. Should be either 'normal' or 'disabled'.
-        """
-        for button in self.buttons_that_require_connection:
-            button.config(state=state)
+    def play_button_clicked(self, id):
+        self.clients[id].send({"playerState": 0})
 
-    def open_path_button_clicked(self):
-        path = self.path_entry.get()
-        for client in self.clients:
-            client.send({"path": path})
+    def pause_button_clicked(self, id):
+        self.clients[id].send({"playerState": 1})
 
-    def play_button_clicked(self):
-        for client in self.clients:
-            client.send({"playerState": 0})
+    def seek_button_clicked(self, id):  # new method
+        seek_time = float(self.frames[id]['seek_entry'].get())  # we convert the input to float, as it's time in seconds
+        self.clients[id].send({"currentTime": seek_time})
 
-    def pause_button_clicked(self):
-        for client in self.clients:
-            client.send({"playerState": 1})
-
-    def seek_button_clicked(self):  # new method
-        seek_time = float(self.seek_entry.get())  # we convert the input to float, as it's time in seconds
-        for client in self.clients:
-            client.send({"currentTime": seek_time})
-
-    def set_playback_speed_button_clicked(self):
-        playback_speed = float(self.playback_speed_entry.get())  # we convert the input to float, as it's speed
-        for client in self.clients:
-            client.send({"playbackSpeed": playback_speed})
+    def set_playback_speed_button_clicked(self, id):
+        playback_speed = float(self.frames[id]['playback_speed_entry'].get())  # we convert the input to float, as it's speed
+        self.clients[id].send({"playbackSpeed": playback_speed})
 
     def update(self, id, data):
         print(f'Received data from client {id}: {data}')  # This will log the data received.
         # Update GUI with received data
         player_state = "Playing" if data['playerState'] == 0 else "Paused"
-        self.player_status["text"] = f"Client {id} Player Status: {player_state}"
+        self.frames[id]['player_status']["text"] = f"Player Status: {player_state}"
 
         if "currentTime" in data:
-            self.current_time_label.config(text=f"Client {id} Current Time: {data['currentTime']}")  # new
+            self.frames[id]['current_time_label'].config(text=f"Current Time: {data['currentTime']}")  # new
 
         if "duration" in data:
-            self.duration_label.config(text=f"Client {id} Duration: {data['duration']}")  # new
+            self.frames[id]['duration_label'].config(text=f"Duration: {data['duration']}")  # new
 
         if "playbackSpeed" in data:
-            self.playback_speed_label.config(text=f"Client {id} Playback Speed: {data['playbackSpeed']}") # new
+            self.frames[id]['playback_speed_label'].config(text=f"Playback Speed: {data['playbackSpeed']}") # new
 
     def stop_all_clients(self):
         for client in self.clients:
             client.stop()
 
-
-
     def run(self):
         self.window.mainloop()
+
+    def create_widgets_for_client(self, frame, id):
+        widgets = {}
+
+        widgets['hostname_entry'] = tk.Entry(frame)
+        widgets['hostname_entry'].grid(row=0, column=1)
+        widgets['hostname_entry'].insert(0, '10.0.0.60')  # pre-fill with the default hostname
+
+        widgets['port_entry'] = tk.Entry(frame)
+        widgets['port_entry'].grid(row=1, column=1)
+        widgets['port_entry'].insert(0, '23554')  # pre-fill with the default port
+
+        widgets['path_entry'] = tk.Entry(frame)
+        widgets['path_entry'].grid(row=3, column=1)
+
+        widgets['connect_button'] = tk.Button(frame, text="Connect", command=lambda: self.connect_button_clicked(id))
+        widgets['connect_button'].grid(row=2, column=0, columnspan=2)
+
+        widgets['disconnect_button'] = tk.Button(frame, text="Disconnect", command=lambda: self.disconnect_button_clicked(id))
+        widgets['disconnect_button'].grid(row=2, column=2, columnspan=2)
+
+        widgets['open_path_button'] = tk.Button(frame, text="Open Path", command=lambda: self.open_path_button_clicked(id))
+        widgets['open_path_button'].grid(row=4, column=0, columnspan=2)
+
+        widgets['play_button'] = tk.Button(frame, text="Play", command=lambda: self.play_button_clicked(id))
+        widgets['play_button'].grid(row=5, column=0)
+
+        widgets['pause_button'] = tk.Button(frame, text="Pause", command=lambda: self.pause_button_clicked(id))
+        widgets['pause_button'].grid(row=5, column=1)
+
+        widgets['buttons_that_require_connection'] = [
+            widgets['open_path_button'],
+            widgets['play_button'],
+            widgets['pause_button'],
+        ]
+
+        return widgets
+
+    def create_frame(self, id, client):
+        frame = tk.Frame(self.window)
+        frame.grid(row=0, column=id)
+
+        # Create "Connect" button and define what happens when it is clicked
+        connect_button = tk.Button(frame, text=f"Connect {id+1}", command=lambda: self.connect_button_clicked(id))
+        connect_button.pack()
+
+        # Create "Disconnect" button and define what happens when it is clicked
+        disconnect_button = tk.Button(frame, text=f"Disconnect {id+1}", command=lambda: self.disconnect_button_clicked(id))
+        disconnect_button.pack()
+
+        # Create and pack labels and entry fields for entering the hostname and port
+        host_label = tk.Label(frame, text="Hostname:")
+        host_label.pack()
+        hostname_entry = tk.Entry(frame)
+        hostname_entry.insert(0, '10.0.0.60')  # pre-fill with the default hostname
+        hostname_entry.pack()
+
+        port_label = tk.Label(frame, text="Port:")
+        port_label.pack()
+        port_entry = tk.Entry(frame)
+        port_entry.insert(0, '23554')  # pre-fill with the default port
+        port_entry.pack()
+
+        # Create "Open Path" button and define what happens when it is clicked
+        open_path_button = tk.Button(frame, text="Open Path", command=lambda: self.open_path_button_clicked(id))
+        open_path_button.pack()
+
+        # Create "Play" and "Pause" buttons and define what happens when they are clicked
+        play_button = tk.Button(frame, text="Play", command=lambda: self.play_button_clicked(id))
+        play_button.pack()
+        pause_button = tk.Button(frame, text="Pause", command=lambda: self.pause_button_clicked(id))
+        pause_button.pack()
+
+        # Create label to display player status
+        player_status = tk.Label(frame, text="Player Status: Not Connected")
+        player_status.pack()
+
+        # Create labels to display the current time and duration of the video
+        current_time_label = tk.Label(frame, text="Current Time: 0.0")
+        current_time_label.pack()
+        duration_label = tk.Label(frame, text="Duration: 0.0")
+        duration_label.pack()
+
+        # Create and pack label, entry field and button for the seek functionality
+        seek_label = tk.Label(frame, text="Seek to (in seconds):")
+        seek_label.pack()
+        seek_entry = tk.Entry(frame)
+        seek_entry.pack()
+        seek_button = tk.Button(frame, text="Seek", command=lambda: self.seek_button_clicked(id))
+        seek_button.pack()
+
+        # Create and pack label, entry field and button for the playback speed functionality
+        playback_speed_label = tk.Label(frame, text="Playback speed:")
+        playback_speed_label.pack()
+        playback_speed_entry = tk.Entry(frame)
+        playback_speed_entry.pack()
+        set_playback_speed_button = tk.Button(frame, text="Set Playback Speed", command=lambda: self.set_playback_speed_button_clicked(id))
+        set_playback_speed_button.pack()
+
+        # Return the frame dictionary with all the GUI elements
+        return {
+            'frame': frame,
+            'connect_button': connect_button,
+            'disconnect_button': disconnect_button,
+            'hostname_entry': hostname_entry,
+            'port_entry': port_entry,
+            'open_path_button': open_path_button,
+            'play_button': play_button,
+            'pause_button': pause_button,
+            'player_status': player_status,
+            'current_time_label': current_time_label,
+            'duration_label': duration_label,
+            'playback_speed_label': playback_speed_label,
+            'seek_entry': seek_entry,
+            'seek_button': seek_button,
+            'playback_speed_entry': playback_speed_entry,
+            'set_playback_speed_button': set_playback_speed_button,
+            'buttons_that_require_connection': [
+                open_path_button,
+                play_button,
+                pause_button,
+                seek_button,
+                set_playback_speed_button
+            ],
+        }
+
+    def setup(self):
+        for i, client in enumerate(self.clients):
+            frame_dict = self.create_frame(i, client)
+            self.frames.append(frame_dict)
+
+    
+    def set_buttons_state(self, state, id):
+        """
+        Set the state of all buttons that require a connection.
+
+        :param state: The state to set. Should be either 'normal' or 'disabled'.
+        :param id: The id of the client for which the buttons should be set.
+        """
+        frame = self.frames[id]
+        for button in frame['buttons_that_require_connection']:
+            button.config(state=state)
 
 
 
