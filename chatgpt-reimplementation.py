@@ -10,12 +10,13 @@ import threading  # used for running multiple tasks at the same time
 import atexit
 
 class DeoVRClient:
-    def __init__(self, gui, host='127.0.0.1', port=23554):
+    def __init__(self, gui, id, host='10.0.0.60', port=23554):
         # The constructor takes a gui object, a host address and a port number.
         # The gui object will be used to interact with the GUI.
         # The host and port will be used to connect to the DeoVR app.
 
         self.gui = gui
+        self.id = id
         self.host = host
         self.port = port
         self.sock = None
@@ -47,14 +48,21 @@ class DeoVRClient:
         # The socket is closed and the receiver and pinger threads are stopped.
 
         self.connected = False
-        self.sock.close()
-        self.receiver.join()
-        self.pinger.join()
+        if self.sock is not None:  # add this line
+            self.sock.close()
+        if self.receiver is not None:  # check if receiver thread exists before joining
+            self.receiver.join()
+        if self.pinger is not None:  # check if pinger thread exists before joining
+            self.pinger.join()
 
     def stop(self):
-        self.disconnect()
-        self.receiver.join()
-        self.pinger.join()
+        self.connected = False
+        if self.sock is not None:
+            self.sock.close()
+        if self.receiver is not None and self.receiver.is_alive():
+            self.receiver.join()
+        if self.pinger is not None and self.pinger.is_alive():
+            self.pinger.join()
 
 
     def send(self, data):
@@ -107,7 +115,12 @@ class DeoVRClient:
 class DeoVRGui:
     def __init__(self):
         # Constructor: sets up the GUI window and elements, and creates a DeoVRClient for interacting with the DeoVR app.
-        self.client = DeoVRClient(self)
+        
+        # Create two clients
+        self.clients = [
+            DeoVRClient(self, id=1),
+            DeoVRClient(self, id=2)
+        ]
 
         # Create main application window
         self.window = tk.Tk()
@@ -125,7 +138,7 @@ class DeoVRGui:
         self.host_label = tk.Label(self.window, text="Hostname:")
         self.host_label.pack()
         self.hostname_entry = tk.Entry(self.window)
-        self.hostname_entry.insert(0, '10.0.0.161')  # pre-fill with the default hostname
+        self.hostname_entry.insert(0, '10.0.0.60')  # pre-fill with the default hostname
         self.hostname_entry.pack()
 
         self.port_label = tk.Label(self.window, text="Port:")
@@ -193,7 +206,8 @@ class DeoVRGui:
         try:
             hostname = self.hostname_entry.get()
             port = int(self.port_entry.get())
-            self.client.connect(hostname, port)
+            for client in self.clients:
+                client.connect(hostname, port)
             messagebox.showinfo("Connection status", "Successfully connected")
             # Enable the buttons when the connection is successful.
             self.set_buttons_state('normal')
@@ -202,7 +216,8 @@ class DeoVRGui:
 
     def disconnect_button_clicked(self):
         try:
-            self.client.disconnect()
+            for client in self.clients:
+                client.disconnect()
             messagebox.showinfo("Connection status", "Successfully disconnected")
             # Disable the buttons when the connection is closed.
             self.set_buttons_state('disabled')
@@ -220,13 +235,26 @@ class DeoVRGui:
 
     def open_path_button_clicked(self):
         path = self.path_entry.get()
-        self.client.send({"path": path})
+        for client in self.clients:
+            client.send({"path": path})
 
     def play_button_clicked(self):
-        self.client.send({"playerState": 0})
+        for client in self.clients:
+            client.send({"playerState": 0})
 
     def pause_button_clicked(self):
-        self.client.send({"playerState": 1})
+        for client in self.clients:
+            client.send({"playerState": 1})
+
+    def seek_button_clicked(self):  # new method
+        seek_time = float(self.seek_entry.get())  # we convert the input to float, as it's time in seconds
+        for client in self.clients:
+            client.send({"currentTime": seek_time})
+
+    def set_playback_speed_button_clicked(self):
+        playback_speed = float(self.playback_speed_entry.get())  # we convert the input to float, as it's speed
+        for client in self.clients:
+            client.send({"playbackSpeed": playback_speed})
 
     def update(self, data):
         print(f'Received data: {data}')  # This will log the data received.
@@ -243,19 +271,18 @@ class DeoVRGui:
         if "playbackSpeed" in data:
             self.playback_speed_label.config(text=f"Playback Speed: {data['playbackSpeed']}") # new
 
+    def stop_all_clients(self):
+        for client in self.clients:
+            client.stop()
+
+
 
     def run(self):
         self.window.mainloop()
 
-    def seek_button_clicked(self):  # new method
-        seek_time = float(self.seek_entry.get())  # we convert the input to float, as it's time in seconds
-        self.client.send({"currentTime": seek_time})
 
-    def set_playback_speed_button_clicked(self):
-        playback_speed = float(self.playback_speed_entry.get())  # we convert the input to float, as it's speed
-        self.client.send({"playbackSpeed": playback_speed})
 
 if __name__ == "__main__":
     gui = DeoVRGui()
-    atexit.register(gui.client.stop)  # ensure stop is called when the program exits
+    atexit.register(gui.stop_all_clients)  # ensure stop is called when the program exits
     gui.run()
