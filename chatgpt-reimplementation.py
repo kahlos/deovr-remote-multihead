@@ -320,10 +320,56 @@ class DeoVRGui:
         }
 
     def setup(self):
+        # Add master control frame first
+        master_control_frame = tk.Frame(self.window)
+        master_control_frame.grid(row=0, column=0)  # Place it before all clients
+
+        # Create master play pause buttons
+        master_play_button = tk.Button(master_control_frame, text="Play All", command=self.master_play_button_clicked)
+        master_play_button.pack()
+        master_pause_button = tk.Button(master_control_frame, text="Pause All", command=self.master_pause_button_clicked)
+        master_pause_button.pack()
+
+        # Create master seek
+        master_seek_label = tk.Label(master_control_frame, text="Seek to (in seconds):")
+        master_seek_label.pack()
+        self.master_seek_entry = tk.Entry(master_control_frame)
+        self.master_seek_entry.pack()
+        master_seek_button = tk.Button(master_control_frame, text="Seek All", command=self.master_seek_button_clicked)
+        master_seek_button.pack()
+
+        # Create master playback speed
+        master_playback_speed_label = tk.Label(master_control_frame, text="Set Playback Speed to:")
+        master_playback_speed_label.pack()
+        self.master_playback_speed_entry = tk.Entry(master_control_frame)
+        self.master_playback_speed_entry.pack()
+        master_set_playback_speed_button = tk.Button(master_control_frame, text="Set Playback Speed All", command=self.master_set_playback_speed_button_clicked)
+        master_set_playback_speed_button.pack()
+
+        # Setip individual client frames
         for i, client in enumerate(self.clients):
             frame_dict = self.create_frame(i, client)
             self.frames.append(frame_dict)
+            frame_dict['frame'].grid(row=0, column=i+1)  # Note that the column is i+1 now
 
+            
+    def master_play_button_clicked(self):
+        for client in self.clients:
+            client.send({"playerState": 0})
+
+    def master_pause_button_clicked(self):
+        for client in self.clients:
+            client.send({"playerState": 1})
+
+    def master_seek_button_clicked(self):
+        seek_time = float(self.master_seek_entry.get())  # we convert the input to float, as it's time in seconds
+        for client in self.clients:
+            client.send({"currentTime": seek_time})
+
+    def master_set_playback_speed_button_clicked(self):
+        playback_speed = float(self.master_playback_speed_entry.get())  # we convert the input to float, as it's speed
+        for client in self.clients:
+            client.send({"playbackSpeed": playback_speed})
     
     def set_buttons_state(self, state, id):
         """
