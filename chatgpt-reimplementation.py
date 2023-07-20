@@ -271,7 +271,12 @@ class DeoVRGui:
         port_entry.pack()
 
         # Create "Open Path" button and define what happens when it is clicked
-        open_path_button = tk.Button(frame, text="Open Path", command=lambda: self.open_path_button_clicked(id))
+        path_label = tk.Label(frame, text="Video Path:")
+        path_label.pack()
+        path_entry = tk.Entry(frame)
+        path_entry.pack()
+        path_entry.insert(0, '/storage/emulated/0/Movies/')  # pre-fill with the video folder
+        open_path_button = tk.Button(frame, text="Open Path", command=lambda: self.open_path_button_clicked(id, path_entry.get()))
         open_path_button.pack()
 
         # Create "Play" and "Pause" buttons and define what happens when they are clicked
@@ -313,6 +318,8 @@ class DeoVRGui:
             'disconnect_button': disconnect_button,
             'hostname_entry': hostname_entry,
             'port_entry': port_entry,
+            'path_label': path_label,
+            'path_entry': path_entry,
             'open_path_button': open_path_button,
             'play_button': play_button,
             'pause_button': pause_button,
@@ -360,12 +367,20 @@ class DeoVRGui:
         master_set_playback_speed_button = tk.Button(master_control_frame, text="Set Playback Speed All", command=self.master_set_playback_speed_button_clicked)
         master_set_playback_speed_button.pack()
 
+        # Create master path selector
+        master_path_label = tk.Label(master_control_frame, text="Path:")
+        master_path_label.pack()
+        self.master_path_entry = tk.Entry(master_control_frame)
+        self.master_path_entry.pack()
+        self.master_path_entry.insert(0, '/storage/emulated/0/Movies/') # pre-fill with the video folder
+        master_open_path_button = tk.Button(master_control_frame, text="Open Path", command=self.master_open_path_button_clicked)
+        master_open_path_button.pack()
+
+        # Add number of frames / headsets selector
         frame_num_label = tk.Label(master_control_frame, text="Number of headsets:")
         frame_num_label.pack(side="left")
-
         frame_num_entry = tk.Entry(master_control_frame, textvariable=self.frame_num_var)
         frame_num_entry.pack(side="left")
-
         frame_num_button = tk.Button(master_control_frame, text="Setup", command=self.setup)
         frame_num_button.pack(side="left")
 
@@ -416,7 +431,15 @@ class DeoVRGui:
         playback_speed = float(self.master_playback_speed_entry.get())  # we convert the input to float, as it's speed
         for client in self.clients:
             client.send({"playbackSpeed": playback_speed})
-    
+
+    def master_open_path_button_clicked(self):
+        path = self.master_path_entry.get()
+        for client in self.clients:
+            client.send({"path": path})
+        
+    def open_path_button_clicked(self, id, path):
+        self.clients[id].send({"path": path})
+
     def set_buttons_state(self, state, id):
         """
         Set the state of all buttons that require a connection.
