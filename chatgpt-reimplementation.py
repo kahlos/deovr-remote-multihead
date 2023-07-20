@@ -166,12 +166,21 @@ class DeoVRGui:
         self.seek_button = tk.Button(self.window, text="Seek", command=self.seek_button_clicked)
         self.seek_button.pack()
 
+        # Create and pack label, entry field and button for the playback speed functionality
+        self.playback_speed_label = tk.Label(self.window, text="Playback speed:")
+        self.playback_speed_label.pack()
+        self.playback_speed_entry = tk.Entry(self.window)
+        self.playback_speed_entry.pack()
+        self.set_playback_speed_button = tk.Button(self.window, text="Set Playback Speed", command=self.set_playback_speed_button_clicked)
+        self.set_playback_speed_button.pack()
+
         # List of buttons that require a connection to work.
         self.buttons_that_require_connection = [
             self.open_path_button,
             self.play_button,
             self.pause_button,
-            self.seek_button
+            self.seek_button,
+            self.set_playback_speed_button
         ]
 
         # Disable the buttons to start.
@@ -181,6 +190,7 @@ class DeoVRGui:
     def connect_button_clicked(self):
         try:
             self.client.connect()
+            self.client.send({"playbackSpeed": 1})  # Set playback speed to 1
             messagebox.showinfo("Connection status", "Successfully connected")
             # Enable the buttons when the connection is successful.
             self.set_buttons_state('normal')
@@ -218,7 +228,8 @@ class DeoVRGui:
     def update(self, data):
         print(f'Received data: {data}')  # This will log the data received.
         # Update GUI with received data
-        self.player_status["text"] = f"Player Status: {data['playerState']}"
+        player_state = "Playing" if data['playerState'] == 0 else "Paused"
+        self.player_status["text"] = f"Player Status: {player_state}"
 
         if "currentTime" in data:
             self.current_time_label.config(text=f"Current Time: {data['currentTime']}")  # new
@@ -226,12 +237,20 @@ class DeoVRGui:
         if "duration" in data:
             self.duration_label.config(text=f"Duration: {data['duration']}")  # new
 
+        if "playbackSpeed" in data:
+            self.playback_speed_label.config(text=f"Playback Speed: {data['playbackSpeed']}") # new
+
+
     def run(self):
         self.window.mainloop()
 
     def seek_button_clicked(self):  # new method
         seek_time = float(self.seek_entry.get())  # we convert the input to float, as it's time in seconds
         self.client.send({"currentTime": seek_time})
+
+    def set_playback_speed_button_clicked(self):
+        playback_speed = float(self.playback_speed_entry.get())  # we convert the input to float, as it's speed
+        self.client.send({"playbackSpeed": playback_speed})
 
 if __name__ == "__main__":
     gui = DeoVRGui()
