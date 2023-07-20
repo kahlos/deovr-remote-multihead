@@ -9,6 +9,7 @@ import socket  # used for creating a network connection
 import threading  # used for running multiple tasks at the same time
 import atexit
 import math
+from threading import Thread
 
 class DeoVRClient:
     def __init__(self, gui, id, host='10.0.0.60', port=23554):
@@ -24,7 +25,10 @@ class DeoVRClient:
         self.connected = False
         self.receiver = None
         self.pinger = None
-        self.current_time = 0.0
+        self.sync_thread = None
+        self.current_time = 0
+        self.playback_speed = 1
+        self.syncing = True  # Add this line
 
     def connect(self, hostname, port):
         # This method is called to connect to the DeoVR app.
@@ -50,12 +54,15 @@ class DeoVRClient:
         # The socket is closed and the receiver and pinger threads are stopped.
 
         self.connected = False
+        self.syncing = False  # Add this line
         if self.sock is not None:  # add this line
             self.sock.close()
         if self.receiver is not None:  # check if receiver thread exists before joining
             self.receiver.join()
         if self.pinger is not None:  # check if pinger thread exists before joining
             self.pinger.join()
+        if self.sync_thread is not None and self.sync_thread.is_alive():  # check if sync_thread exists before joining
+            self.sync_thread.join()
 
     def stop(self):
         self.connected = False
@@ -65,6 +72,7 @@ class DeoVRClient:
             self.receiver.join()
         if self.pinger is not None and self.pinger.is_alive():
             self.pinger.join()
+        self.syncing = False  # Add this line
 
 
     def send(self, data):
@@ -81,21 +89,31 @@ class DeoVRClient:
                 print(f"Exception while sending data: {e}")
                 # If an error occurs, close the socket and reopen the connection
                 self.disconnect()
-                time.sleep(1)
-                self.connect()
         else:  # Sending a ping
-            self.sock.sendall((0).to_bytes(4, 'little'))
+            try:
+                self.sock.sendall((0).to_bytes(4, 'little'))
+            except Exception as e:
+                print(f"Exception while sending ping: {e}")
+                # If an error occurs, close the socket
+                self.disconnect()
 
     def _receive(self):
         # This method is run in a separate thread and is responsible for receiving data from the DeoVR app.
         # When data is received, it is decoded and passed to the GUI to update the interface.
-
         while self.connected:
             try:
-                length = int.from_bytes(self.sock.recv(4), 'big')
-                if length:
-                    msg = json.loads(self.sock.recv(length).decode('utf-8'))
-                    self.gui.update(self.id, msg)
+                length_bytes = self.sock.recv(4)
+                if length_bytes:
+                    length = int.from_bytes(length_bytes, 'little')
+                    msg_bytes = self.sock.recv(length)
+                    try:
+                        msg = json.loads(msg_bytes.decode('utf-8'))
+                        self.gui.update(self.id, msg)
+                        if 'currentTime' in msg:
+                            self.current_time = msg['currentTime']
+                            print(f"[DEBUG] Current time for client {self.id}: {self.current_time}")  # New logging statement
+                    except UnicodeDecodeError:
+                        print(f"Failed to decode message from client {self.id}: {msg_bytes}")
             except Exception as e:
                 print(f"Exception in receive: {e}")
                 break  # Break the loop and end the thread if an exception occurs
@@ -112,6 +130,44 @@ class DeoVRClient:
             except Exception as e:
                 print(f"Exception in ping: {e}")
                 break
+
+    def _sync_loop(self):
+        sync_checks = 0  # Counter for number of sync checks within tolerance
+
+        try:
+            while self.syncing:
+                print(f"[DEBUG] Sync loop for client {self.id} is running.")
+                master = self.gui.clients[0]  # Assume the first client is the master
+
+                if master.connected and self.connected:  # Only sync if both the master and this client are connected
+                    print(f"[DEBUG] Syncing client {self.id}. Master time: {master.current_time}, client time: {self.current_time}")
+                    time_difference = self.current_time - master.current_time
+                    print(f"[DEBUG] Time difference for client {self.id}: {time_difference}")
+
+                    # Set playback speed based on time difference
+                    # Scale the adjustment based on the time difference. Max adjustment is 50%, min adjustment is 1%
+                    adjustment = min(max(abs(time_difference * 10), 1), 50) / 100
+                    if time_difference > 0:
+                        self.send({"playbackSpeed": max(0.5, 1 - adjustment)})  # If this client is ahead, slow it down
+                    elif time_difference < 0:
+                        self.send({"playbackSpeed": min(1.5, 1 + adjustment)})  # If this client is behind, speed it up
+                    else:
+                        self.send({"playbackSpeed": 1.0})  # If the difference is 0, set the speed to normal
+                time.sleep(0.2)  # Sleep for a tenth of a second before checking again
+        except Exception as e:
+            print(f"[ERROR] Exception in sync loop for client {self.id}: {e}")
+
+    
+    def start_sync_loop(self):
+        self.syncing = True
+        self.sync_thread = Thread(target=self._sync_loop)  # Recreate the thread
+        self.sync_thread.start()
+
+    def stop_sync_loop(self):
+        self.syncing = False
+        if self.sync_thread is not None:
+            self.sync_thread.join()  # Wait for the thread to finish
+            self.sync_thread = None  # Reset the thread
 
 
 class DeoVRGui:
@@ -195,7 +251,6 @@ class DeoVRGui:
 
         if "currentTime" in data:
             self.frames[id]['current_time_label'].config(text=f"Current Time: {data['currentTime']}")  # new
-            self.clients[id].current_time = data['currentTime']  # Store the current_time in the client
 
         if "duration" in data:
             self.frames[id]['duration_label'].config(text=f"Duration: {data['duration']}")  # new
@@ -208,7 +263,10 @@ class DeoVRGui:
             client.stop()
 
     def run(self):
-        self.window.mainloop()
+        try:
+            self.window.mainloop()
+        finally:
+            self.syncing = False  # add this line
 
     def create_widgets_for_client(self, frame, id):
         widgets = {}
@@ -417,19 +475,18 @@ class DeoVRGui:
             frame_dict['frame'].grid(row=row, column=column, padx=10, pady=10)
             
     def master_play_button_clicked(self):
-        # Get current time from master
-        master_current_time = self.clients[0].current_time  # Assume first client is the master
-
-        # Send seek command to all clients
-        for client in self.clients:
-            client.send({"currentTime": master_current_time})
-
-        # Then send play command
+        # Start playing on all clients
         for client in self.clients:
             client.send({"playerState": 0})
+        # After starting all clients, now we start the syncing loops
+        for client in self.clients:
+            client.stop_sync_loop()  # Stop any previous sync loop
+            client.start_sync_loop()  # Start a new sync loop
+            client.send({"playerState": 2})
 
     def master_pause_button_clicked(self):
         for client in self.clients:
+            client.stop_sync_loop()  # Stop any previous sync loop
             client.send({"playerState": 1})
 
     def master_seek_button_clicked(self):
