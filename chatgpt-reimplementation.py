@@ -120,7 +120,11 @@ class DeoVRGui:
         # Create main application window
         self.window = tk.Tk()
         self.window.resizable(True, True)
-        self.window.title("DeoVR Multi-Headset Master Control")
+        self.window.title("DeoVR Multi-Headset Control")
+
+        # Create master control window
+        self.master_window = tk.Toplevel(self.window)
+        self.master_window.title("DeoVR Master Controls")
 
         # Variables for frame selector
         self.frame_num_var = tk.StringVar()
@@ -130,27 +134,14 @@ class DeoVRGui:
         self.parent_frame = tk.Frame(self.window)
         self.parent_frame.pack()
 
-        # Frame for selecting number of frames / headsets
-        frame_num_frame = tk.Frame(self.window)
-        frame_num_frame.pack()
-
-        frame_num_label = tk.Label(frame_num_frame, text="Number of headsets:")
-        frame_num_label.pack(side="left")
-
-        frame_num_entry = tk.Entry(frame_num_frame, textvariable=self.frame_num_var)
-        frame_num_entry.pack(side="left")
-
-        frame_num_button = tk.Button(frame_num_frame, text="Setup", command=self.setup)
-        frame_num_button.pack(side="left")
-
         # Create placeholders for clients, frames and buttons
         self.clients = []
         self.frames = []
         self.buttons_that_require_connection = []
 
         # Create a frame container to hold all client frames
-        self.frame_container = tk.Frame(self.window)
-        self.frame_container.pack()
+        self.parent_frame = tk.Frame(self.window)
+        self.parent_frame.pack(fill=tk.BOTH, expand=True)
 
         # Now that all the frames have been fully set up, disable the buttons
         self.setup()
@@ -344,8 +335,8 @@ class DeoVRGui:
 
     def setup(self):
         # Add master control frame first
-        master_control_frame = tk.Frame(self.parent_frame)  # note the parent widget here
-        master_control_frame.grid(row=0, column=0, padx=10, pady=10)  # Place it before all clients
+        master_control_frame = tk.Frame(self.master_window)
+        master_control_frame.grid(row=0, column=0)  # Place it before all clients
 
         # Create master play pause buttons
         master_play_button = tk.Button(master_control_frame, text="Play All", command=self.master_play_button_clicked)
@@ -368,6 +359,15 @@ class DeoVRGui:
         self.master_playback_speed_entry.pack()
         master_set_playback_speed_button = tk.Button(master_control_frame, text="Set Playback Speed All", command=self.master_set_playback_speed_button_clicked)
         master_set_playback_speed_button.pack()
+
+        frame_num_label = tk.Label(master_control_frame, text="Number of headsets:")
+        frame_num_label.pack(side="left")
+
+        frame_num_entry = tk.Entry(master_control_frame, textvariable=self.frame_num_var)
+        frame_num_entry.pack(side="left")
+
+        frame_num_button = tk.Button(master_control_frame, text="Setup", command=self.setup)
+        frame_num_button.pack(side="left")
 
         # Check the frame number input by user is valid
         try:
