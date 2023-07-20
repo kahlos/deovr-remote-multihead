@@ -8,6 +8,7 @@ import json  # used for encoding and decoding JSON data
 import socket  # used for creating a network connection
 import threading  # used for running multiple tasks at the same time
 import atexit
+import math
 
 class DeoVRClient:
     def __init__(self, gui, id, host='10.0.0.60', port=23554):
@@ -118,16 +119,38 @@ class DeoVRGui:
         
         # Create main application window
         self.window = tk.Tk()
-        self.window.title("DeoVR Remote Control")
+        self.window.resizable(True, True)
+        self.window.title("DeoVR Multi-Headset Master Control")
 
-        # Create two clients
-        self.clients = [
-            DeoVRClient(self, id=0),
-            DeoVRClient(self, id=1)
-        ]
+        # Variables for frame selector
+        self.frame_num_var = tk.StringVar()
+        self.frame_num_var.set("1")  # default value
 
+        # Create a frame to contain all other frames (master and client frames)
+        self.parent_frame = tk.Frame(self.window)
+        self.parent_frame.pack()
+
+        # Frame for selecting number of frames / headsets
+        frame_num_frame = tk.Frame(self.window)
+        frame_num_frame.pack()
+
+        frame_num_label = tk.Label(frame_num_frame, text="Number of headsets:")
+        frame_num_label.pack(side="left")
+
+        frame_num_entry = tk.Entry(frame_num_frame, textvariable=self.frame_num_var)
+        frame_num_entry.pack(side="left")
+
+        frame_num_button = tk.Button(frame_num_frame, text="Setup", command=self.setup)
+        frame_num_button.pack(side="left")
+
+        # Create placeholders for clients, frames and buttons
+        self.clients = []
         self.frames = []
         self.buttons_that_require_connection = []
+
+        # Create a frame container to hold all client frames
+        self.frame_container = tk.Frame(self.window)
+        self.frame_container.pack()
 
         # Now that all the frames have been fully set up, disable the buttons
         self.setup()
@@ -232,7 +255,7 @@ class DeoVRGui:
         return widgets
 
     def create_frame(self, id, client):
-        frame = tk.Frame(self.window)
+        frame = tk.Frame(self.parent_frame)  # note the parent widget here
         frame.grid(row=0, column=id)
 
         # Create "Connect" button and define what happens when it is clicked
@@ -321,8 +344,8 @@ class DeoVRGui:
 
     def setup(self):
         # Add master control frame first
-        master_control_frame = tk.Frame(self.window)
-        master_control_frame.grid(row=0, column=0)  # Place it before all clients
+        master_control_frame = tk.Frame(self.parent_frame)  # note the parent widget here
+        master_control_frame.grid(row=0, column=0, padx=10, pady=10)  # Place it before all clients
 
         # Create master play pause buttons
         master_play_button = tk.Button(master_control_frame, text="Play All", command=self.master_play_button_clicked)
@@ -346,12 +369,35 @@ class DeoVRGui:
         master_set_playback_speed_button = tk.Button(master_control_frame, text="Set Playback Speed All", command=self.master_set_playback_speed_button_clicked)
         master_set_playback_speed_button.pack()
 
-        # Setip individual client frames
-        for i, client in enumerate(self.clients):
+        # Check the frame number input by user is valid
+        try:
+            num_frames = int(self.frame_num_var.get())
+        except ValueError:
+            messagebox.showerror("Error", "Invalid frame count. Please enter a number.")
+            return
+
+        # Clear current clients and frames
+        self.clients.clear()
+        for frame_dict in self.frames:
+            frame_dict['frame'].destroy()
+        self.frames.clear()
+
+        # Calculate appropriate row and column for each frame
+        num_frames = int(self.frame_num_var.get())
+        num_columns = math.ceil(math.sqrt(num_frames))  # Determine the number of columns dynamically
+
+        # Create new clients and frames
+        for i in range(num_frames):
+            client = DeoVRClient(self, id=i)
+            self.clients.append(client)
+
             frame_dict = self.create_frame(i, client)
             self.frames.append(frame_dict)
-            frame_dict['frame'].grid(row=0, column=i+1)  # Note that the column is i+1 now
 
+        for i, frame_dict in enumerate(self.frames):
+            row = (i // num_columns) + 1  # Add one to leave space for the master controls
+            column = (i % num_columns) + 1  # Add one to leave space for the master controls
+            frame_dict['frame'].grid(row=row, column=column, padx=10, pady=10)
             
     def master_play_button_clicked(self):
         for client in self.clients:
