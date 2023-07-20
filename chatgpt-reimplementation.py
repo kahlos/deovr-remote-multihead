@@ -205,20 +205,6 @@ class DeoVRGui:
         for button in self.buttons_that_require_connection:
             button.config(state=state)
 
-    def connect_button_clicked(self):
-        try:
-            self.client.connect()
-            messagebox.showinfo("Connection status", "Successfully connected")
-        except Exception as e:
-            messagebox.showerror("Connection status", f"Failed to connect: {e}")
-
-    def disconnect_button_clicked(self):
-        try:
-            self.client.disconnect()
-            messagebox.showinfo("Connection status", "Successfully disconnected")
-        except Exception as e:
-            messagebox.showerror("Connection status", f"Failed to disconnect: {e}")
-
     def open_path_button_clicked(self):
         path = self.path_entry.get()
         self.client.send({"path": path})
@@ -230,6 +216,7 @@ class DeoVRGui:
         self.client.send({"playerState": 1})
 
     def update(self, data):
+        print(f'Received data: {data}')  # This will log the data received.
         # Update GUI with received data
         self.player_status["text"] = f"Player Status: {data['playerState']}"
 
