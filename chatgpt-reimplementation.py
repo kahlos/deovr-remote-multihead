@@ -7,6 +7,7 @@ import time  # used for controlling the timing of the program
 import json  # used for encoding and decoding JSON data
 import socket  # used for creating a network connection
 import threading  # used for running multiple tasks at the same time
+import atexit
 
 class DeoVRClient:
     def __init__(self, gui, host='10.0.0.161', port=23554):
@@ -32,6 +33,7 @@ class DeoVRClient:
             self.sock.connect((self.host, self.port))
             print("Connected successfully")  # debug log
             self.connected = True
+            self.send({"path": "", "duration": 0, "currentTime": 0, "playbackSpeed": 0, "playerState": 0})
             self.receiver = threading.Thread(target=self._receive)
             self.receiver.start()
             self.pinger = threading.Thread(target=self._start_ping)
@@ -49,13 +51,30 @@ class DeoVRClient:
         self.receiver.join()
         self.pinger.join()
 
+    def stop(self):
+        self.disconnect()
+        self.receiver.join()
+        self.pinger.join()
+
+
     def send(self, data):
         # This method is called to send data to the DeoVR app.
         # The data is encoded as JSON and then sent over the socket.
 
-        msg = json.dumps(data).encode('utf-8')
-        length = len(msg)
-        self.sock.sendall(length.to_bytes(4, 'big') + msg)
+        if data:
+            msg = json.dumps(data).encode('utf-8')
+            length = len(msg)
+            try:
+                if self.sock:
+                    self.sock.sendall(length.to_bytes(4, 'little') + msg)
+            except Exception as e:
+                print(f"Exception while sending data: {e}")
+                # If an error occurs, close the socket and reopen the connection
+                self.disconnect()
+                time.sleep(1)
+                self.connect()
+        else:  # Sending a ping
+            self.sock.sendall((0).to_bytes(4, 'little'))
 
     def _receive(self):
         # This method is run in a separate thread and is responsible for receiving data from the DeoVR app.
@@ -78,11 +97,11 @@ class DeoVRClient:
 
         while self.connected:
             try:
-                self.send({})
+                self.send(None)  # Sending a ping
                 time.sleep(1)
             except Exception as e:
                 print(f"Exception in ping: {e}")
-                break  # Break the loop and end the thread if an exception occurs
+                break
 
 
 class DeoVRGui:
@@ -229,4 +248,5 @@ class DeoVRGui:
 
 if __name__ == "__main__":
     gui = DeoVRGui()
+    atexit.register(gui.client.stop)  # ensure stop is called when the program exits
     gui.run()
