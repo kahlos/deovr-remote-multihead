@@ -134,37 +134,51 @@ class DeoVRClient:
                 break
 
     def _sync_loop(self):
+        print(f"Starting syncronisation for headset #{self.id}")
         sync_checks = 0  # Counter for number of sync checks within tolerance
 
         try:
             while self.syncing:
                 # print(f"[DEBUG] Sync loop for client {self.id} is running.")  # New logging statement
                 master = self.gui.clients[0]  # Assume the first client is the master
+                
                 if master.connected and self.connected:  # Only sync if both the master and this client are connected
-                    print(f"[DEBUG] Syncing client {self.id}. Master time: {master.current_time}, client time: {self.current_time}")  # New logging statement
+                    # Refresh master time by setting playback speed
+                    master.send({"playbackSpeed": 1.0})
+
+                    # Calculate time difference between master and this client
+                    # print(f"[DEBUG] Syncing client {self.id}. Master time: {master.current_time}, client time: {self.current_time}")  # New logging statement
                     time_difference = self.current_time - master.current_time
 
-                     # If the time difference is less than 0.01 for more than 5 seconds
-                    if abs(time_difference) < 0.01:
+                     # If the time difference is less than 20 ms stop
+                    if abs(time_difference) < 0.02:
                         sync_checks += 1
-                        if sync_checks >= 50:
+                        # print(f"[DEBUG] Sync check count {sync_checks}")
+                        if sync_checks >=5:
+                            self.send({"playbackSpeed": 1.0})
                             self.syncing = False  # Stop the sync loop
-                            print(f"[DEBUG] Sync loop for client {self.id} is stopping.")
-                            continue
+                            print(f"Syncronisation is finished for headset #{self.id}")
                     else:
                         sync_checks = 0  # Reset sync check counter if we're not within tolerance
 
+                    if not self.syncing:
+                        continue
+
                     # Set playback speed based on time difference
-                    # Scale the adjustment based on the time difference. Max adjustment is 50%, min adjustment is 1%
-                    adjustment = min(max(abs(time_difference * 10), 1), 50) / 100
-                    print(f"[DEBUG] Time difference and adjustment for client {self.id}: {time_difference} / {adjustment}")  # New logging statement
+                    # Scale the adjustment based on the time difference. Max adjustment is 100%, min adjustment is 0.0001%
+                    adjustment = min(max(abs(time_difference * time_difference * 10), 0.0001), 100) / 100
+                    # print(f"[DEBUG] Time difference and adjustment for client {self.id}: {time_difference} / {adjustment}")  # New logging statement
                     if time_difference > 0:
-                        self.send({"playbackSpeed": max(0.70, 1 - adjustment)})  # If this client is ahead, slow it down
+                        if self.id != 0:  # Don't send playbackSpeed commands to the master
+                            self.send({"playbackSpeed": max(0.25, 1 - adjustment)})  # If this client is ahead, slow it down
                     elif time_difference < 0:
-                        self.send({"playbackSpeed": min(1.3, 1 + adjustment)})  # If this client is behind, speed it up
+                        if self.id != 0:  # Don't send playbackSpeed commands to the master
+                            self.send({"playbackSpeed": min(2, 1 + adjustment)})  # If this client is behind, speed it up
                     else:
-                        self.send({"playbackSpeed": 1.0})  # If the difference is 0, set the speed to normal
-                time.sleep(0.1)  # Sleep for a 200 ms before checking again
+                        if self.id != 0:  # Don't send playbackSpeed commands to the master
+                            self.send({"playbackSpeed": 1.0})  # If the difference is 0, set the speed to normal
+
+                time.sleep(0.1)  # Sleep for 100 ms before checking again
         except Exception as e:
             print(f"[ERROR] Exception in sync loop for client {self.id}: {e}")
 
@@ -178,6 +192,10 @@ class DeoVRClient:
         self.syncing = False
         if self.sync_thread is not None:
             self.sync_thread.join()  # Wait for the thread to finish
+            if self.sync_thread.is_alive():
+                print(f"Sync thread for client {self.id} failed to stop.")
+            # else:
+                # print(f"Sync thread for client {self.id} stopped successfully.")
             self.sync_thread = None  # Reset the thread
 
 
@@ -278,6 +296,8 @@ class DeoVRGui:
             self.window.mainloop()
         finally:
             self.syncing = False  # add this line
+            for client in self.clients:
+                client.stop_sync_loop()  # Ensure all sync loops are stopped
 
     def create_widgets_for_client(self, frame, id):
         widgets = {}
@@ -488,6 +508,7 @@ class DeoVRGui:
     def master_play_button_clicked(self):
         print(f"Starting playback on all headsets")
         # Start playing on all clients
+        self.clients[0].send({"playerState": 0})
         for client in self.clients:
             client.send({"playerState": 0})
         # After starting all clients, now we start the syncing loops
@@ -498,6 +519,7 @@ class DeoVRGui:
 
     def master_pause_button_clicked(self):
         print(f"Pausing all headsets")
+        self.clients[0].send({"playerState": 1})
         for client in self.clients:
             client.stop_sync_loop()  # Stop any previous sync loop
             client.send({"playerState": 1})
